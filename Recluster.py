@@ -23,13 +23,6 @@ class Recluster(IPlugin):
 
                 cluster_ids = controller.supervisor.selected
 
-                print(f"{controller.selector.__dir__()}")
-                print(f"{type(controller.selector)}")
-                print(controller.selector)
-                print(type(controller.supervisor.clustering))
-                print(controller.supervisor.clustering.__dir__())
-                print(controller.supervisor.clustering)
-
                 spike_ids = [
                     controller.selector.get_spikes_per_cluster(cluster_id) 
                     for cluster_id in cluster_ids
