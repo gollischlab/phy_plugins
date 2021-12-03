@@ -4,7 +4,7 @@
 | alt+2             |                  |                  | Assign quality 2
 | alt+3             |                  |                  | Assign quality 3
 | alt+4             |                  |                  | Assign quality 4
-| alt+5             |                  |                  | Assign quality 5
+| alt+5             |                  |                  | Clear quality assignment
 | alt+b             | EventMarker      | Amplitude view   | Toggle event markers
 | shift+alt+e       |                  |                  | Go to event
 | shift+alt+pgdown  | JumpInTrace      | Trace view       | Jump to next spike of any selected cluster
