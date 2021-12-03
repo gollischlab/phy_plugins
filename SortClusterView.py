@@ -23,6 +23,8 @@ primary column is set to ascending (▲) or descending (▼) ordering.
 
 The variable `column_order` can be freely adjusted. However, the default
 ['ch', 'id'] seems to be optimal.
+
+Available: id, ch, sh, depth, fr, amp, n_spikes, comment, group, quality
 """
 
 import json
@@ -34,15 +36,16 @@ logger = logging.getLogger('phy')
 
 
 class SortClusterView(IPlugin):
+
+    # Priority of column sorting
+    column_order = ['ch', 'group', 'id']
+
     def attach_to_controller(self, controller):
 
-        # Priority of column sorting
-        column_order = ['ch', 'id']
-
         # Javascript to execute
-        js = """
+        js_base = """
           // Priority of column sorting
-          var columnOrder = """ + json.dumps(column_order) + """;
+          var columnOrder = """+json.dumps(SortClusterView.column_order)+""";
 
           // Set a custom sort function
           table.sortFunction = function(itemA, itemB, options) {
@@ -66,9 +69,11 @@ class SortClusterView(IPlugin):
               multi = options.order === 'desc' ? -1 : 1; // Always ascending
             }
           }
+        """
 
+        js_resort = """
           // Resort now
-          if(options.sort && options.sort[0])
+          if (options.sort && options.sort[0])
             table.sort(options.sort[0], {"order": options.sort[1]});
         """
 
@@ -78,4 +83,30 @@ class SortClusterView(IPlugin):
 
             @connect(sender=view)
             def on_ready(sender):
-                view.eval_js(js)
+                view.eval_js(js_base)
+                view.eval_js(js_resort)
+
+            def prompt():
+                return ','.join(SortClusterView.column_order)
+
+            @controller.supervisor.actions.add(prompt=True,
+                                               prompt_default=prompt,
+                                               menu='Sele&ct',
+                                               submenu='Sort by')
+            def select_secondary_sorting(order):
+                """
+                Priority of secondary column ordering (comma-separated).
+                Available: id, ch, sh, depth, fr, amp, n_spikes,
+                comment, group, quality
+                """
+                column_avail = (['id'] + controller.supervisor.columns
+                                + controller.supervisor.cluster_meta.fields)
+
+                order = [c for c in order if c in column_avail]
+
+                if len(order) > 0:
+                    js_up = "columnOrder = " + json.dumps(order) + ";"
+                    SortClusterView.column_order = order
+                    view.eval_js(js_up)
+                    view.eval_js(js_resort)
+                    logger.info('Set secondary sorting to ' + ', '.join(order))
