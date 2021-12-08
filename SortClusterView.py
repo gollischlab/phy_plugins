@@ -13,39 +13,63 @@ column. (The primary ordering column remains untouched: It is the
 sorting that can be dynamically chosen by clicking the column headers,
 as indicated by the ordering arrow, ▲ and ▼).
 
-The list `column_order` contains the column identifiers by which to
-order if two rows have identical values in the primary ordering column.
-The list is prioritized: If the first element is equal for both rows,
-the next column identifier in `column_order` will be checked. It is wise
-to have 'id' as the last element, because it contains unique values. The
+The secondary column ordering list decides over the order if two rows
+have identical values in the primary ordering column. The list is
+prioritized: If the first element is equal for both rows, the next
+column identifier in in the list will be checked. It is wise to have
+'id' as the last element, because it contains unique values. The
 secondary orderings are always ascending, irrespective of whether the
 primary column is set to ascending (▲) or descending (▼) ordering.
 
-The variable `column_order` can be freely adjusted. However, the default
-['ch', 'id'] seems to be optimal.
-
-Available: id, ch, sh, depth, fr, amp, n_spikes, comment, group, quality
+The priority ordering can be changed from the main menu in Phy:
+    Select->Sort by->Select secondary sorting
+This configuration will be stored to disk to be preserved globally over
+opening and closing Phy.
 """
 
 import json
 import logging
+from pathlib import Path
 from phy import IPlugin, connect
 from phy.cluster.supervisor import ClusterView
+from phy.utils import phy_config_dir
 
 logger = logging.getLogger('phy')
 
 
 class SortClusterView(IPlugin):
+    # Load config
+    def __init__(self):
+        self.filepath = Path(phy_config_dir()) / 'plugin_sortclusterview.json'
 
-    # Priority of column sorting
-    column_order = ['ch', 'group', 'id']
+        # Default config
+        dflts = ['ch', 'group', 'id']  # Do not change here
+
+        # Create config file with defaults if it does not exist
+        if not self.filepath.exists():
+            logger.debug("Create default config at %s.", self.filepath)
+            with open(self.filepath, 'w', encoding='utf-8') as f:
+                json.dump(dflts, f, ensure_ascii=False, indent=4)
+
+        # Load config
+        logger.debug("Load %s for config.", self.filepath)
+        with open(self.filepath, 'r') as f:
+            try:
+                self.column_order = json.load(f)
+            except json.decoder.JSONDecodeError as e:
+                logger.warning("Error decoding JSON: %s", e)
+                self.column_order = dflts
+
+    def update_config(self):
+        with open(self.filepath, 'w', encoding='utf-8') as f:
+            json.dump(self.column_order, f, ensure_ascii=False, indent=4)
 
     def attach_to_controller(self, controller):
 
         # Javascript to execute
         js_base = """
           // Priority of column sorting
-          var columnOrder = """+json.dumps(SortClusterView.column_order)+""";
+          var columnOrder = """ + json.dumps(self.column_order) + """;
 
           // Set a custom sort function
           table.sortFunction = function(itemA, itemB, options) {
@@ -86,8 +110,15 @@ class SortClusterView(IPlugin):
                 view.eval_js(js_base)
                 view.eval_js(js_resort)
 
+            def check(entry):
+                column_avail = (['id'] + controller.supervisor.columns
+                                + controller.supervisor.cluster_meta.fields)
+
+                entry = [c for c in entry if c in column_avail]
+                return entry
+
             def prompt():
-                return ','.join(SortClusterView.column_order)
+                return ','.join(check(self.column_order))
 
             @controller.supervisor.actions.add(prompt=True,
                                                prompt_default=prompt,
@@ -99,14 +130,15 @@ class SortClusterView(IPlugin):
                 Available: id, ch, sh, depth, fr, amp, n_spikes,
                 comment, group, quality
                 """
-                column_avail = (['id'] + controller.supervisor.columns
-                                + controller.supervisor.cluster_meta.fields)
-
-                order = [c for c in order if c in column_avail]
+                order = check(order)
 
                 if len(order) > 0:
+                    self.column_order = order
+
                     js_up = "columnOrder = " + json.dumps(order) + ";"
-                    SortClusterView.column_order = order
                     view.eval_js(js_up)
                     view.eval_js(js_resort)
+
+                    self.update_config()
+
                     logger.info('Set secondary sorting to ' + ', '.join(order))
