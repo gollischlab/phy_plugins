@@ -11,7 +11,7 @@ class SplitDuplicates(IPlugin):
     def attach_to_controller(self, controller):
         @connect
         def on_gui_ready(sender, gui):
-            @controller.supervisor.actions.add(shortcut='d',
+            @controller.supervisor.actions.add(shortcut='alt+d',
                                                name='Visualize duplicates',
                                                alias='dup')
             def VisualizeShortISI():
