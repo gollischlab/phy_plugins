@@ -7,7 +7,8 @@ preferred. The setting can be toggled on the fly from the main menu:
     Edit->Toggle shortcut modifier
 
 Known limitations:
-The displayed shortcut in the menu entries is not updated.
+The displayed shortcut in the menu entries may not be updated depending
+on the operating system or Qt version(?).
 """
 
 import json
@@ -31,7 +32,6 @@ class ToggleModifier(IPlugin):
             modifier='alt',
             actions=[
                 'K_means_clustering',
-                'K_means_clustering_amplitude',
                 'Split by Mahalanobis distance',
                 'Visualize short ISI',
                 'Visualize duplicates',
@@ -100,14 +100,6 @@ class ToggleModifier(IPlugin):
                 if shortcut != shortcut_orig:
                     outp = logger.info if verbose else logger.debug
                     outp("Updated shortcut '%s' to %s", act, shortcut)
-
-                # # Update the text in menus (NOT WORKING)
-                # for act in gui._menus['&Edit'].actions():
-                #     if act.text() == 'Toggle shortcut modifier ALT':
-                #         if checked:
-                #             act.setShortcut('alt+p')
-                #         else:
-                #             act.setShortcut('p')
 
         @connect
         def on_gui_ready(sender, gui):
