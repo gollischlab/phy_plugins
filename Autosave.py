@@ -75,7 +75,6 @@ class Autosave(IPlugin):
                 if self.count > self.config['interval_minutes'] * 60:
                     logger.info('Trigger auto-save.')
                     gui.file_actions.save()
-                    self.count = 0
                 elif self.count % self.config['interval_debug'] == 0:
                     logger.debug('Counter: %d seconds', self.count)
 
@@ -91,3 +90,8 @@ class Autosave(IPlugin):
             def set_autosave_interval(interval):
                 self.config['interval_minutes'] = self.check_validity(interval)
                 self.update_config()
+
+            @connect(sender=gui)
+            def on_request_save(sender):
+                logger.debug('Reset auto-save counter.')
+                self.count = 0
