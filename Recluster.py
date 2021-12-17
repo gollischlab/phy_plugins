@@ -19,7 +19,7 @@ class Recluster(IPlugin):
                                                submenu='Clustering')
             def K_means_clustering(kmeanclusters):
                 """Select number of clusters"""
-                logger.info("Running K-means clustering")
+                logger.info("Running K-means clustering.")
 
                 cluster_ids = controller.supervisor.selected
 
@@ -35,7 +35,7 @@ class Recluster(IPlugin):
                 assert s.shape == label.shape
 
                 controller.supervisor.actions.split(s, label)
-                logger.info("K means clustering complete")
+                logger.info("K-means clustering complete.")
 
             @controller.supervisor.actions.add(shortcut='alt+a', prompt=True,
                                                prompt_default=lambda: 2,
@@ -81,7 +81,8 @@ class Recluster(IPlugin):
                                                submenu='Clustering')
             def MahalanobisDist(thres_in):
                 """Select threshold in STDs"""
-                logger.info("Removing outliers by Mahalanobis distance")
+                logger.info("Removing outliers with a Mahalanobis distance "
+                            "greater than %.2g.", thres_in)
 
                 def MahalanobisDistCalc2(x, y):
                     covariance_xy = np.cov(x, y, rowvar=0)
@@ -109,7 +110,8 @@ class Recluster(IPlugin):
                     C = X - np.tile(m, (rx, 1))
                     Q, R = np.linalg.qr(C)
                     ri, ri2, ri3, ri4 = np.linalg.lstsq(np.transpose(R),
-                                                        np.transpose(Y-M))
+                                                        np.transpose(Y-M),
+                                                        rcond=None)
                     d = np.transpose(np.sum(ri*ri, axis=0)).dot(rx-1)
                     return d
 
@@ -122,7 +124,7 @@ class Recluster(IPlugin):
                 data2 = np.reshape(data3, (data3.shape[0],
                                            data3.shape[1]*data3.shape[2]))
                 if data2.shape[0] < data2.shape[1]:
-                    logger.warn("Error: Not enough spikes in the cluster")
+                    logger.warn("Not enough spikes in the cluster.")
                     return
 
                 MD = MahalanobisDistCalc(data2, data2)
@@ -131,6 +133,6 @@ class Recluster(IPlugin):
                 outliers = np.where(MD > threshold)[0]
                 outliers2 = np.ones(len(s), dtype=int)
                 outliers2[outliers] = 2
-                logger.info("Outliers detected: %d.", len(outliers))
+                logger.info("Detected %d outliers.", len(outliers))
                 if len(outliers) > 0:
                     controller.supervisor.actions.split(s, outliers2)
