@@ -26,12 +26,15 @@ class Recluster(IPlugin):
                 spike_ids = controller.selector.select_spikes(cluster_ids)
                 s = controller.supervisor.clustering.spikes_in_clusters(
                     cluster_ids)
-                data = controller.model._load_features()
+                data  = controller.model._load_features()
                 data3 = data.data[spike_ids]
                 data2 = np.reshape(data3, (data3.shape[0],
                                            data3.shape[1]*data3.shape[2]))
                 whitened = whiten(data2)
-                clusters_out, label = kmeans2(whitened, kmeanclusters)
+                #print(whitened)
+                clusters_out, label = kmeans2(whitened, kmeanclusters, minit='++')
+                #print('succeeded')
+                #print(clusters_out)
                 assert s.shape == label.shape
 
                 controller.supervisor.actions.split(s, label)
