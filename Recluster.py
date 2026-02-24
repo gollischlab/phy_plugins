@@ -22,22 +22,18 @@ class Recluster(IPlugin):
                 logger.info("Running K-means clustering.")
 
                 cluster_ids = controller.supervisor.selected
-
-                spike_ids = controller.selector.select_spikes(cluster_ids)
-                s = controller.supervisor.clustering.spikes_in_clusters(
-                    cluster_ids)
-                data  = controller.model._load_features()
-                data3 = data.data[spike_ids]
-                data2 = np.reshape(data3, (data3.shape[0],
-                                           data3.shape[1]*data3.shape[2]))
-                whitened = whiten(data2)
-                #print(whitened)
+                spike_ids = controller.supervisor.clustering.spikes_in_clusters(cluster_ids)
+                channel_ids = controller.model.get_cluster_channels(cluster_ids[0])
+                data = controller.model.get_features(
+                    spike_ids=spike_ids,
+                    channel_ids=channel_ids
+                )
+                data = np.reshape(data, (data.shape[0], data.shape[1]*data.shape[2]))
+                whitened = whiten(data)
                 clusters_out, label = kmeans2(whitened, kmeanclusters, minit='++')
-                #print('succeeded')
-                #print(clusters_out)
-                assert s.shape == label.shape
+                assert spike_ids.shape == label.shape
 
-                controller.supervisor.actions.split(s, label)
+                controller.supervisor.actions.split(spike_ids, label)
                 logger.info("K-means clustering complete.")
 
             @controller.supervisor.actions.add(shortcut='alt+a', prompt=True,
