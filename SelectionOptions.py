@@ -63,23 +63,29 @@ class SelectionOptions(IPlugin):
                 """Reverse the current cluster selection order"""
                 sup = controller.supervisor
 
-                if len(sup.selected) < 2:
+                # OPTIM: every access to sup.selected, sup.selected_clusters
+                # and sup.selected_similar scans the task history, so read
+                # the selection state only once.
+                state = sup.task_logger.last_state()
+                clusters = list(state[0] or []) if state else []
+                similar = list(state[2] or []) if state else []
+                selected = clusters + [c for c in similar if c not in clusters]
+
+                if len(selected) < 2:
                     logger.debug('Not enough clusters selected.')
                     return
 
-                if (len(sup.selected) == 2
-                        and len(sup.selected_clusters) == 1
-                        and len(sup.selected_similar) == 1):
+                if (len(selected) == 2 and len(clusters) == 1
+                        and len(similar) == 1):
                     # Switch cluster and similarity selection
-                    state = (sup.selected_similar, None,
-                             sup.selected_clusters, None)
+                    state = (similar, None, clusters, None)
                 else:
                     # Move the selection to the cluster view only
-                    state = (sup.selected[::-1], None, None, None)
+                    state = (selected[::-1], None, None, None)
 
                 logger.info('Reverse selection of clusters from %s to %s.',
-                            ', '.join(map(str, sup.selected)),
-                            ', '.join(map(str, sup.selected[::-1])))
+                            ', '.join(map(str, selected)),
+                            ', '.join(map(str, selected[::-1])))
 
                 # Let the TaskLogger take care of making the selections
                 sup.task_logger._select_state(state)

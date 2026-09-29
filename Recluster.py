@@ -10,6 +10,12 @@ logger = logging.getLogger('phy')
 
 
 class Recluster(IPlugin):
+    # K-means is fitted on at most this many spikes (randomly chosen), and all
+    # spikes are then assigned to the nearest centroid.
+    kmeans_max_spikes = 50000
+    # Number of spikes whose features are loaded at once for the assignment.
+    kmeans_chunk_size = 100000
+
     def attach_to_controller(self, controller):
         @connect
         def on_gui_ready(sender, gui):
@@ -22,15 +28,56 @@ class Recluster(IPlugin):
                 logger.info("Running K-means clustering.")
 
                 cluster_ids = controller.supervisor.selected
-                spike_ids = controller.supervisor.clustering.spikes_in_clusters(cluster_ids)
-                channel_ids = controller.model.get_cluster_channels(cluster_ids[0])
-                data = controller.model.get_features(
-                    spike_ids=spike_ids,
-                    channel_ids=channel_ids
-                )
-                data = np.reshape(data, (data.shape[0], data.shape[1]*data.shape[2]))
-                whitened = whiten(data)
-                clusters_out, label = kmeans2(whitened, kmeanclusters, minit='++')
+                if not cluster_ids:
+                    return
+                # OPTIM: gather the spikes from spikes_per_cluster instead of
+                # scanning the spike_clusters array of all spikes.
+                spc = controller.supervisor.clustering.spikes_per_cluster
+                spike_ids = np.sort(np.concatenate(
+                    [np.asarray(spc[c]) for c in cluster_ids])).astype(np.int64)
+                # Cached best channels (same as model.get_cluster_channels(),
+                # without going through all spikes).
+                channel_ids = np.asarray(
+                    controller.get_best_channels(cluster_ids[0]))
+
+                def get_features(spikes):
+                    data = controller.model.get_features(
+                        spike_ids=spikes, channel_ids=channel_ids)
+                    data = np.reshape(
+                        data, (data.shape[0], data.shape[1] * data.shape[2]))
+                    # Spikes without features come out as NaN.
+                    return np.nan_to_num(data.astype(np.float32, copy=False))
+
+                n = len(spike_ids)
+                if n <= self.kmeans_max_spikes:
+                    # Small enough: cluster all spikes directly.
+                    fit_spikes = spike_ids
+                else:
+                    # OPTIM: fit on a random subset of the spikes, then assign
+                    # all spikes to the nearest centroid below.
+                    rng = np.random.default_rng()
+                    fit_spikes = np.sort(rng.choice(
+                        spike_ids, self.kmeans_max_spikes, replace=False))
+                data = get_features(fit_spikes)
+                # Same as scipy's whiten(), reusing the std for all spikes.
+                std = data.std(axis=0)
+                std[std == 0] = 1
+                centroids, label = kmeans2(
+                    (data / std).astype(np.float64), kmeanclusters, minit='++')
+
+                if n > self.kmeans_max_spikes:
+                    logger.debug("Fitted K-means on %d/%d spikes.",
+                                 len(fit_spikes), n)
+                    centroids = centroids.astype(np.float32)
+                    c2 = (centroids ** 2).sum(axis=1)
+                    label = np.empty(n, dtype=np.int64)
+                    # Assign in chunks to bound the memory usage.
+                    for i in range(0, n, self.kmeans_chunk_size):
+                        x = get_features(
+                            spike_ids[i:i + self.kmeans_chunk_size]) / std
+                        # Squared distances up to a per-spike constant.
+                        d = c2[np.newaxis, :] - 2 * x.dot(centroids.T)
+                        label[i:i + self.kmeans_chunk_size] = d.argmin(axis=1)
                 assert spike_ids.shape == label.shape
 
                 controller.supervisor.actions.split(spike_ids, label)
