@@ -18,10 +18,12 @@ class MarkChannel(IPlugin):
             @connect(sender=controller.supervisor)
             def on_select(sender, cluster_ids=None, **kwargs):
                 view = gui.get_view(ClusterView)
+                # OPTIM: same value as the 'ch' column, without computing
+                # all the columns of all clusters at every selection.
+                channel_of = controller.get_best_channel_label
 
                 # Get selected channels
-                channels = [sender.get_cluster_info(c)['ch']
-                            for c in cluster_ids]
+                channels = [channel_of(c) for c in cluster_ids]
                 channels, c_ids = np.unique(channels, return_index=True)
                 channels = channels.tolist()
 
@@ -33,10 +35,11 @@ class MarkChannel(IPlugin):
                           for c in colors]
 
                 clust = dict()
+                color_of = dict(zip(channels, colors))
                 for c in sender.clustering.cluster_ids:
-                    ch = sender.get_cluster_info(c)['ch']
-                    if ch in channels:
-                        clust[str(c)] = colors[channels.index(ch)]
+                    color = color_of.get(channel_of(c))
+                    if color is not None:
+                        clust[str(c)] = color
 
                 js = """
                     var ll = """ + str(clust) + """;
@@ -55,7 +58,7 @@ class MarkChannel(IPlugin):
                             }
                         };
 
-                        if (Object.keys(ll).indexOf(c_id) >= 0) {
+                        if (ll.hasOwnProperty(c_id)) {
                             itms[i].style.background = ll[c_id];
                             chng.push(c_id);
                         } else {
